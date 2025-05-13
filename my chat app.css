@@ -1,0 +1,190 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, MessageCircle, Loader2, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
+// Dummy script for the bot's responses.
+const botResponses = [
+    "Salutations! How may I be of service to you today?",
+    "I am equipped to provide information, address inquiries, or engage in dialogue.",
+    "Kindly share your question or request.",
+    "I am at your disposal!",
+    "That is a most intriguing query!",
+    "My capabilities are continuously expanding through ongoing development.",
+    "It is a pleasure to interact with you directly.",
+    "May I offer further assistance?",
+    "I am pleased to have provided assistance.",
+    "I wish you a pleasant day!"
+];
+
+// Animation variants
+const messageVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeInOut' } },
+    exit: { opacity: 0, y: -10, transition: { duration: 0.2 } }
+};
+
+// Typing indicator component
+const TypingIndicator = () => (
+    <div className="flex items-center gap-2">
+        <Loader2 className="animate-spin h-5 w-5 text-gray-400" />
+        <span className="text-sm text-gray-400">The bot is typing...</span>
+    </div>
+);
+
+// Message component
+const ChatMessage = ({ message }: { message: { id: string; text: string; sender: 'user' | 'bot'; isError?: boolean } }) => {
+    const isUser = message.sender === 'user';
+    const messageColor = isUser ? 'bg-blue-500/20 text-blue-200' : 'bg-gray-700/50 text-gray-200';
+    const tailDirection = isUser ? 'rounded-br-none rounded-bl-lg' : 'rounded-bl-none rounded-br-lg';
+
+    return (
+        <motion.div
+            variants={messageVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className={cn(
+                "flex w-full",
+                isUser ? "justify-end" : "justify-start"
+            )}
+        >
+            <div
+                className={cn(
+                    "max-w-[80%] sm:max-w-[70%] md:max-w-[60%] p-3 rounded-xl",
+                    messageColor,
+                    tailDirection,
+                    "whitespace-pre-wrap break-words",
+                    message.isError && "bg-red-500/20 text-red-200 border border-red-500/50" // Error styling
+                )}
+            >
+                {message.isError ? (
+                    <div className="flex items-center gap-2">
+                        <XCircle className="h-5 w-5 text-red-400" />
+                        <span>Error: {message.text}</span>
+                    </div>
+                ) : (
+                    message.text
+                )}
+            </div>
+        </motion.div>
+    );
+};
+
+// Main chat component
+const ImmersiveChat = () => {
+    const [messages, setMessages] = useState<{ id: string; text: string; sender: 'user' | 'bot'; isError?: boolean }[]>([]);
+    const [input, setInput] = useState('');
+    const [isBotTyping, setIsBotTyping] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Scroll to bottom on new message
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    // Focus input on load
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    // Function to simulate bot response
+    const getBotResponse = useCallback((userMessage: string) => {
+        setIsBotTyping(true);
+        // Simulate a delay for the bot to "think"
+        const delay = 1000 + Math.random() * 1500;
+
+        setTimeout(() => {
+            let response = botResponses[Math.floor(Math.random() * botResponses.length)];
+             // Simulate error
+            if (Math.random() < 0.1) { // 10% chance of error
+                setMessages(prevMessages => [
+                    ...prevMessages,
+                    { id: crypto.randomUUID(), text: 'An error occurred while processing your request. Please try again.', sender: 'bot', isError: true },
+                ]);
+            }
+            else {
+              setMessages(prevMessages => [
+                  ...prevMessages,
+                  { id: crypto.randomUUID(), text: response, sender: 'bot' },
+              ]);
+            }
+            setIsBotTyping(false);
+        }, delay);
+    }, [botResponses]);
+
+    // Handle sending a message
+    const handleSendMessage = useCallback(() => {
+        const trimmedInput = input.trim();
+        if (trimmedInput) {
+            const newUserMessage = { id: crypto.randomUUID(), text: trimmedInput, sender: 'user' };
+            setMessages(prevMessages => [...prevMessages, newUserMessage]);
+            setInput('');
+            getBotResponse(trimmedInput);
+        }
+    }, [input, getBotResponse]);
+
+    // Handle Enter key press in input
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-screen bg-gray-900">
+            {/* Chat Header */}
+            <div className="bg-gray-800 p-4 border-b border-gray-700">
+                <h1 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5 text-blue-400" />
+                    Immersive Chat
+                </h1>
+                <p className='text-gray-400 text-sm'>Powered by Genoshi</p>
+            </div>
+
+            {/* Message Display Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AnimatePresence>
+                    {messages.map(message => (
+                        <ChatMessage key={message.id} message={message} />
+                    ))}
+                </AnimatePresence>
+                {isBotTyping && <TypingIndicator />}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="bg-gray-800 p-4 border-t border-gray-700">
+                <div className="flex gap-3 items-center">
+                    <Input
+                        ref={inputRef}
+                        type="text"
+                        placeholder="Type your message..."
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="flex-1 bg-gray-700/50 text-gray-200 border-gray-600 placeholder:text-gray-400
+                                   focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                    />
+                    <Button
+                        onClick={handleSendMessage}
+                        className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 hover:text-blue-200
+                                   transition-colors duration-200 px-6 py-3 rounded-xl flex items-center gap-2
+                                   shadow-lg shadow-blue-500/20"
+                        disabled={!input.trim()}
+                    >
+                        <Send className="h-5 w-5" />
+                        Send
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ImmersiveChat;
+
